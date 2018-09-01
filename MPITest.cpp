@@ -9,28 +9,38 @@
 #define numofcluster 6
 using namespace std;
 vector<float> arr;
-/*comput the maximum number*/
-float compute_max(float *array, int tasks);
+/*initialize environment*/
 float *initial(string textname);
-/*find block significant values*/
-float blockmaxscore(string blockname, int start, int end);
+/*comput the average number*/
+void rowavgscore(int start, int end, int platform,int rows);
+/*initialize data*/
+void dataInitial();
 int chunksize;
 int numtasks, taskid;
 float *significantvalue = new float[numofcluster];
 float *significantnodes = new float[numofcluster*numtasks];
 float Rdata[9611008];
+float** Bar = new float*[bars];
+float** Rev = new float*[numofcluster];
 int main(int argc, char *argv[])
 {
+	float sum = 0;
 	MPI_Init(&argc, &argv);
 	float *Arr = initial("Glioma.arrays.txt");
+
+
 	MPI_Scatter( Arr, chunksize, MPI_FLOAT, Rdata,
 			  chunksize, MPI_FLOAT, 0, MPI_COMM_WORLD);	
-		 significantvalue[0] = blockmaxscore("G2", 0, 7);
-		 significantvalue[1] = blockmaxscore("G2 oligo", 7, 45);
-		 significantvalue[2] = blockmaxscore("G3", 45, 64);
-		 significantvalue[3] = blockmaxscore(" G3 oligo", 64, 76);
-		 significantvalue[4] = blockmaxscore(" G4", 76, 153);
-		 significantvalue[5] = blockmaxscore(" non-tumour", 153, 176);
+
+	dataInitial();
+
+	
+	for (int i = 0; i < chunksize / bars; i++) {
+		for (int n = 0; n < numofcluster; n++) {
+			cout << Rev[n][i] << "\t";
+		}
+		cout << "\n";
+	}
 
 		 MPI_Gather(significantvalue, numofcluster, MPI_FLOAT, significantnodes, numofcluster, MPI_FLOAT, 0, MPI_COMM_WORLD);
 		
@@ -46,15 +56,7 @@ int main(int argc, char *argv[])
 	*/
 	return 0;
 }
-float compute_max(float *array, int tasks) {
-	float max1 = 0;
-	for (int i = 0; i < tasks; i++) {
-		if (array[i] > max1) {
-			max1 = array[i];
-		}
-	}
-	return max1;
-}
+
 float *initial(string textname) {
 	
 	MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
@@ -85,9 +87,17 @@ float *initial(string textname) {
 	return arr1;
 }
 
-float blockmaxscore(string blockname, int start, int end) {
+void rowavgscore( int start, int end, int platform,int rows) {
+	float sum = 0;	
+		for (int t = start; t < end; t++) {
+			sum = sum + Bar[t][rows];
+		}
+		Rev[platform][rows] = sum / (end-start);
+	
+}
+void dataInitial() {
 	int f = 0;
-	float** Bar = new float*[bars];
+
 	for (int n = 0; n < bars; ++n) {
 		Bar[n] = new float[chunksize / bars];
 	}
@@ -98,14 +108,18 @@ float blockmaxscore(string blockname, int start, int end) {
 			f++;
 		}
 	}
-	float blockscore = Bar[start][0];
-	for (int t = 0; t < chunksize / bars; t++) {
-		for (int n = start; n < end; n++) {
-			if (Bar[n][t] > blockscore) {
-				blockscore = Bar[n][t];
-			}
+
+	for (int n = 0; n < numofcluster; ++n) {
+		Rev[n] = new float[chunksize / bars];
+	}
+	for (int n = 0; n < chunksize / bars; n++) {
+		for (int i = 0; i < numofcluster; i++) {
+			rowavgscore(0, 7, i, n);
+			rowavgscore(7, 45, i, n);
+			rowavgscore(45, 64, i, n);
+			rowavgscore(64, 76, i, n);
+			rowavgscore(76, 153, i, n);
+			rowavgscore(153, 176, i, n);
 		}
 	}
-	cout << blockname <<" : "<< blockscore<< "\t";
-	return blockscore;
 }
